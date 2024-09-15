@@ -17,7 +17,7 @@ dependencies = [
 
 [tool.ruff]
 line-length = 88
-select = ["E", "F", "I", "W"]
+lint.select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
