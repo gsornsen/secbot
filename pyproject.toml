@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "chainlit>=1.1.404",
+    "langchain>=0.3.0",
     "openai>=1.45.0",
     "pre-commit>=3.8.0",
     "pyproject-toml>=0.0.10",
