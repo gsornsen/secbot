@@ -6,11 +6,15 @@ CHAINLIT := $(VENV)/bin/chainlit
 .PHONY: env run uv clean
 
 uv:
+	@echo "Installing uv..."
 	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
 	@echo "uv is installed"
 
 env: uv
+	@echo "Installing python dependencies..."
 	@uv add pyproject.toml
+	@ echo "Installing git hooks..."
+	@uv run pre-commit install
 
 run:
 	# $(CHAINLIT) run src/<script>.py -h
