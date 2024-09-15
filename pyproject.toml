@@ -10,6 +10,7 @@ dependencies = [
     "openai>=1.45.0",
     "pre-commit>=3.8.0",
     "pyproject-toml>=0.0.10",
+    "pytest>=8.3.3",
     "python-dotenv>=1.0.1",
     "ruff>=0.6.5",
 ]
@@ -17,3 +18,7 @@ dependencies = [
 [tool.ruff]
 line-length = 88
 select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]

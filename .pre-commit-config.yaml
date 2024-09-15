@@ -1,6 +1,16 @@
 repos:
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.6.5  # Use the latest version
-  hooks:
-    - id: ruff
-      args: [--fix, --exit-non-zero-on-fix]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.5  # Use the latest version
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+        stages: [push]
