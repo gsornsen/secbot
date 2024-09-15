@@ -1,0 +1,35 @@
+# Experiments Directory
+
+This directory contains various experiments, scripts, and prototypes used for learning and exploring different tools, technologies, and MVP functionalities. These experiments are not part of the main application and serve as a sandbox for testing ideas and concepts.
+
+## Purpose
+
+The primary purposes of this directory are:
+
+1. Learning new tools and technologies
+2. Prototyping potential features
+3. Testing concepts before implementation in the main application
+4. Exploring different approaches to solving problems
+
+## Important Notes
+
+- Code in this directory is not used in the main application
+- Files here are not imported by any files in the `src` directory
+- Experiments may not have associated tests
+- Code quality and standards may vary as these are exploratory in nature
+
+## Usage
+
+Feel free to add new experiments, modify existing ones, or remove outdated scripts. When an experiment proves valuable, consider refactoring and integrating it into the main application with proper testing and documentation.
+
+## Contributing
+
+When adding new experiments:
+
+1. Create a new subdirectory or file with a descriptive name
+2. Add comments explaining the purpose and any setup required
+3. Update this README if necessary to provide context for significant additions
+
+## Disclaimer
+
+Code in this directory should not be considered production-ready. Use caution when running these scripts, and always review and understand the code before execution.
