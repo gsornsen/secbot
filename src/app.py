@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 from utils.edgar_reports import get_latest_report
 from utils.openai import get_openai_api_key
 
-open_ai_key = get_openai_api_key()
+OPEN_AI_KEY = get_openai_api_key()
+MAX_TOKEN_LIMIT = 100000  # Increased to utilize more of GPT-4o's capacity
 
 
 class TruncatedChatMessageHistory(ChatMessageHistory, BaseModel):
@@ -38,20 +39,23 @@ class TruncatedChatMessageHistory(ChatMessageHistory, BaseModel):
             total_tokens += tokens
             truncated_messages.append(message)
 
-        truncated_messages.reverse()
-        return truncated_messages
+        return list(reversed(truncated_messages))
 
 
 class AsyncConversationTokenBufferMemory(ConversationTokenBufferMemory):
     async def aget_messages(self):
         return self.chat_memory.messages
 
+    async def aadd_messages(self, messages):
+        for message in messages:
+            self.chat_memory.add_message(message)
+
 
 @tool
 def get_company_report(company: str, report_type: str) -> str:
     """Returns a company's latest report
 
-    # Args:
+    Args:
         company: Company Stock Ticker
         report_type: Type of report eg: 10-Q, 10-K
     """
@@ -80,7 +84,7 @@ def summarize_long_text(text: str, max_tokens: int = 10000) -> str:
     return summary["output_text"]
 
 
-sec_copilot_template = """
+SEC_COPILOT_TEMPLATE = """
 You are an assistant chatbot named "SEC Copilot". Your expertise is
 fetching data from the SEC EDGAR database, answering questions about
 the data fetched, summarizing financial reports from companies,
@@ -88,18 +92,18 @@ summarizing earnings calls based on transcripts, as well as
 helping identify strategies to build functionality within scope
 of the user's application to help those companies tackle their
 most impactful issues based on their summarized data. If a question
-if not about SEC data, 10-K, 10-Q, earnings reports, or other
+is not about SEC data, 10-K, 10-Q, earnings reports, or other
 public company financial data, respond with, "I only specialize
 in answering questions and providing insight on public company
-financial and earnings data.
+financial and earnings data."
 """
 
 sec_copilot_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", f"{sec_copilot_template}"),
+        ("system", SEC_COPILOT_TEMPLATE),
         (
             "system",
-            "Use the following chat history to answer questions"
+            "Use the following chat history to answer questions "
             "if possible: {chat_history}",
         ),
         ("human", "{input}"),
@@ -110,14 +114,13 @@ sec_copilot_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-
-model = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=open_ai_key)
-max_token_limit = 100000  # Increased to utilize more of GPT-4o's capacity
+model = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPEN_AI_KEY)
 memory = ConversationTokenBufferMemory(
     memory_key="chat_history",
     return_messages=True,
-    max_token_limit=max_token_limit,
+    max_token_limit=MAX_TOKEN_LIMIT,
     llm=model,
+    output_key="output",
 )
 tools = [get_company_report]
 agent = create_tool_calling_agent(model, tools, sec_copilot_prompt)
@@ -138,8 +141,9 @@ async def start_up():
         lambda session_id: AsyncConversationTokenBufferMemory(
             memory_key="chat_history",
             return_messages=True,
-            max_token_limit=max_token_limit,
+            max_token_limit=MAX_TOKEN_LIMIT,
             llm=model,
+            output_key="output",
         ),
         input_messages_key="input",
         history_messages_key="chat_history",
@@ -156,31 +160,35 @@ async def query_llm(message: cl.Message):
     msg = cl.Message(content="", author="Assistant")
     await msg.send()
 
-    # Summarize long input messages with a higher token limit
     input_message = summarize_long_text(message.content, max_tokens=10000)
-
-    # Get chat history
     chat_history = memory.chat_memory.messages
 
-    # Stream the response to the UI
+    if agent is None:
+        raise ValueError("Agent is not initialized")
+
     async for chunk in agent.astream(
         {"input": input_message, "chat_history": chat_history},
         config={"configurable": {"session_id": cl.user_session.get("id")}},
     ):
-        if isinstance(chunk, dict):
-            if "output" in chunk:
-                await msg.stream_token(chunk["output"])
-            elif "intermediate_steps" in chunk:
-                for step in chunk["intermediate_steps"]:
-                    if isinstance(step, tuple) and len(step) == 2:
-                        action, observation = step
-                        action_str = (
-                            f"\nAction: {action.tool}\nInput: {action.tool_input}\n"
-                        )
-                        await msg.stream_token(action_str)
-                        await msg.stream_token(f"Observation: {observation}\n")
-        elif isinstance(chunk, str):
-            await msg.stream_token(chunk)
+        await process_chunk(chunk, msg)
 
-    # Update memory with summarized input and full output
     memory.save_context({"input": input_message}, {"output": msg.content})
+
+
+async def process_chunk(chunk, msg):
+    if chunk is None:
+        return
+    if isinstance(chunk, dict):
+        if "output" in chunk:
+            await msg.stream_token(chunk["output"])
+        elif "intermediate_steps" in chunk:
+            for step in chunk["intermediate_steps"]:
+                if isinstance(step, tuple) and len(step) == 2:
+                    action, observation = step
+                    action_str = (
+                        f"\nAction: {action.tool}\nInput: {action.tool_input}\n"
+                    )
+                    await msg.stream_token(action_str)
+                    await msg.stream_token(f"Observation: {observation}\n")
+    elif isinstance(chunk, str):
+        await msg.stream_token(chunk)
