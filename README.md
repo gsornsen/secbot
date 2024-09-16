@@ -9,6 +9,10 @@ SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the 
 - Summarize key details from financial reports
 - Powered by advanced language models for intelligent interactions
 
+## Demo
+
+![SEC Copilot Demo](media/sec_copilot_demo.webp)
+
 ## Setup
 
 ### Prerequisites
