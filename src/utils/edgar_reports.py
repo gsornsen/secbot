@@ -5,7 +5,7 @@ def get_latest_report(company: str, report_type: str) -> str:
     edgar.set_identity("Gerald Sornsen gsornsen@gmail.com")
     try:
         company_obj = edgar.Company(company)
-        if company_obj is None:
+        if not company or company_obj is None:
             return f"Company '{company}' not found in EDGAR database."
 
         filings = company_obj.get_filings(form=report_type).latest(1)
