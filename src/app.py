@@ -2,11 +2,8 @@ from typing import List
 
 import chainlit as cl
 from langchain.agents import AgentExecutor, create_tool_calling_agent
-from langchain.chains.summarize import load_summarize_chain
-from langchain.docstore.document import Document
 from langchain.memory import ConversationTokenBufferMemory
 from langchain.prompts import ChatPromptTemplate
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.messages import BaseMessage
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -52,36 +49,15 @@ class AsyncConversationTokenBufferMemory(ConversationTokenBufferMemory):
 
 
 @tool
-def get_company_report(company: str, report_type: str) -> str:
+async def get_company_report(company: str, report_type: str):
     """Returns a company's latest report
 
     Args:
         company: Company Stock Ticker
         report_type: Type of report eg: 10-Q, 10-K
     """
-    full_report = get_latest_report(company, report_type)
+    return await get_latest_report(company, report_type)
 
-    if full_report.startswith("Company"):
-        return f"Error: {full_report} Please check the company ticker and try again."
-
-    return full_report
-
-
-def summarize_long_text(text: str, max_tokens: int = 10000) -> str:
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=max_tokens,
-        chunk_overlap=200,
-        length_function=len,
-    )
-    texts = text_splitter.split_text(text)
-
-    if len(texts) == 1:
-        return texts[0]
-
-    docs = [Document(page_content=t) for t in texts]
-    chain = load_summarize_chain(model, chain_type="map_reduce")
-    summary = chain.invoke(docs)
-    return summary["output_text"]
 
 
 SEC_COPILOT_TEMPLATE = """
@@ -160,19 +136,18 @@ async def query_llm(message: cl.Message):
     msg = cl.Message(content="", author="Assistant")
     await msg.send()
 
-    input_message = summarize_long_text(message.content, max_tokens=10000)
     chat_history = memory.chat_memory.messages
 
     if agent is None:
         raise ValueError("Agent is not initialized")
 
     async for chunk in agent.astream(
-        {"input": input_message, "chat_history": chat_history},
+        {"input": message.content, "chat_history": chat_history},
         config={"configurable": {"session_id": cl.user_session.get("id")}},
     ):
         await process_chunk(chunk, msg)
 
-    memory.save_context({"input": input_message}, {"output": msg.content})
+    memory.save_context({"input": message.content}, {"output": msg.content})
 
 
 async def process_chunk(chunk, msg):

@@ -1,7 +1,7 @@
 import edgar
 
 
-def get_latest_report(company: str, report_type: str) -> str:
+async def get_latest_report(company: str, report_type: str) -> str:
     edgar.set_identity("Gerald Sornsen gsornsen@gmail.com")
     try:
         company_obj = edgar.Company(company)
