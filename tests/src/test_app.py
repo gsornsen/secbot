@@ -1,71 +1,82 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.utils.edgar_reports import get_latest_report
+from src.app import process_chunk, summarize_long_text
 
 
 @pytest.fixture
-def mock_edgar():
-    with patch("src.utils.edgar_reports.edgar") as mock:
+def mock_text_splitter():
+    with patch("src.app.RecursiveCharacterTextSplitter") as mock:
+        mock_instance = mock.return_value
+        mock_instance.split_text.return_value = ["chunk1", "chunk2", "chunk3"]
         yield mock
 
 
-def test_get_latest_report_success(mock_edgar):
-    mock_company = MagicMock()
-    mock_filings = MagicMock()
-    mock_edgar.Company.return_value = mock_company
-    mock_company.get_filings.return_value.latest.return_value = mock_filings
-    mock_filings.markdown.return_value = "Mocked report content"
-
-    result = get_latest_report("AAPL", "10-K")
-
-    assert result == "Mocked report content"
-    mock_edgar.set_identity.assert_called_once_with("Gerald Sornsen gsornsen@gmail.com")
-    mock_edgar.Company.assert_called_once_with("AAPL")
-    mock_company.get_filings.assert_called_once_with(form="10-K")
-    mock_company.get_filings.return_value.latest.assert_called_once_with(1)
+@pytest.fixture
+def mock_load_summarize_chain():
+    with patch("src.app.load_summarize_chain") as mock:
+        yield mock
 
 
-def test_get_latest_report_company_not_found(mock_edgar):
-    mock_edgar.Company.return_value = None
-
-    result = get_latest_report("INVALID", "10-K")
-
-    assert result == "Company 'INVALID' not found in EDGAR database."
+@pytest.fixture
+def mock_chat_openai():
+    with patch("src.app.ChatOpenAI") as mock:
+        yield mock
 
 
-def test_get_latest_report_no_filings(mock_edgar):
-    mock_company = MagicMock()
-    mock_edgar.Company.return_value = mock_company
-    mock_company.get_filings.return_value.latest.return_value = None
+def test_summarize_long_text_short(mock_text_splitter):
+    short_text = "This is a short text that doesn't need summarization."
+    mock_text_splitter.return_value.split_text.return_value = [short_text]
 
-    result = get_latest_report("AAPL", "10-Q")
+    result = summarize_long_text(short_text)
 
-    assert result == "No 10-Q filings found for AAPL."
-
-
-def test_get_latest_report_exception(mock_edgar):
-    mock_edgar.Company.side_effect = Exception("Test error")
-
-    result = get_latest_report("AAPL", "10-K")
-
-    assert result == "An error occurred while fetching the report: Test error"
+    assert result == short_text
+    mock_text_splitter.assert_called_once()
+    mock_text_splitter.return_value.split_text.assert_called_once_with(short_text)
 
 
-def test_get_latest_report_empty_company(mock_edgar):
-    result = get_latest_report("", "10-K")
+def test_summarize_long_text_long(
+    mock_text_splitter, mock_load_summarize_chain, mock_chat_openai
+):
+    long_text = "This is a long text. " * 1000
+    mock_chain = MagicMock()
+    mock_chain.invoke.return_value = {"output_text": "Summarized text"}
+    mock_load_summarize_chain.return_value = mock_chain
 
-    assert result == "Company '' not found in EDGAR database."
-    mock_edgar.Company.assert_called_once_with("")
+    result = summarize_long_text(long_text)
+
+    assert result == "Summarized text"
+    mock_text_splitter.assert_called_once()
+    mock_load_summarize_chain.assert_called_once()
+    mock_chain.invoke.assert_called_once()
 
 
-def test_get_latest_report_empty_report_type(mock_edgar):
-    mock_company = MagicMock()
-    mock_edgar.Company.return_value = mock_company
-    mock_company.get_filings.return_value.latest.return_value = None
+@pytest.mark.asyncio
+async def test_process_chunk():
+    mock_msg = AsyncMock()
 
-    result = get_latest_report("AAPL", "")
+    # Test processing a string chunk
+    await process_chunk("String chunk", mock_msg)
+    mock_msg.stream_token.assert_awaited_once_with("String chunk")
 
-    assert result == "No  filings found for AAPL."
-    mock_company.get_filings.assert_called_once_with(form="")
+    # Test processing a dict chunk with output
+    mock_msg.reset_mock()
+    await process_chunk({"output": "Output chunk"}, mock_msg)
+    mock_msg.stream_token.assert_awaited_once_with("Output chunk")
+
+    # Test processing a dict chunk with intermediate steps
+    mock_msg.reset_mock()
+    chunk = {
+        "intermediate_steps": [
+            (MagicMock(tool="Test Tool", tool_input="Test Input"), "Test Observation")
+        ]
+    }
+    await process_chunk(chunk, mock_msg)
+    assert mock_msg.stream_token.await_count == 2
+    mock_msg.stream_token.assert_any_await("\nAction: Test Tool\nInput: Test Input\n")
+    mock_msg.stream_token.assert_any_await("Observation: Test Observation\n")
+
+
+if __name__ == "__main__":
+    pytest.main()

@@ -14,8 +14,8 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from utils.edgar_reports import get_latest_report
-from utils.openai import get_openai_api_key
+from src.utils.edgar_reports import get_latest_report
+from src.utils.openai import get_openai_api_key
 
 OPEN_AI_KEY = get_openai_api_key()
 MAX_TOKEN_LIMIT = 100000  # Increased to utilize more of GPT-4o's capacity
