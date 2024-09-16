@@ -63,9 +63,8 @@ agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
 
 async def query_llm(question):
-    chunks = []
     async for chunk in agent_executor.astream({"input": question}):
-        print(chunks, end="", flush=True)
+        print(chunk, end="", flush=True)
 
 
 async def main():
