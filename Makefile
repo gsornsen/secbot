@@ -18,12 +18,12 @@ env: uv
 	@uv run pre-commit install --hook-type pre-push
 
 run:
-	# $(CHAINLIT) run src/<script>.py -h
-	@echo "App would start running"
+	@echo "Starting application..."
+	$(CHAINLIT) run src/app.py -w --port 8080
 
 test:
 	@echo "Running tests..."
-	@$(PYTHON) -m pytest tests/
+	@$(PYTHON) -m pytest
 
 clean:
 	@rm -rf $(VENV)
