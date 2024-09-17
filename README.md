@@ -53,7 +53,31 @@ Currently, the application and development environment is only tested on Linux, 
    ```
    OPEN_AI_TOKEN=your_api_key_here
    ```
+
    Or export this environment variable in your applicable `~/.zshrc`, `~/.bashrc`, etc.
+
+4. Create a JWT secret for Chainlit authentication:
+
+   ```
+   uv run chainlit create-secret
+   ```
+
+   Add the generated secret to your `.env` file:
+
+   ```
+   CHAINLIT_AUTH_SECRET=your_generated_secret_here
+   ```
+
+5. Add OAuth keys to your `.env` file:
+
+   ```
+   OAUTH_GITHUB_CLIENT_ID=your_github_client_id
+   OAUTH_GITHUB_CLIENT_SECRET=your_github_client_secret
+   OAUTH_GOOGLE_CLIENT_ID=your_google_client_id
+   OAUTH_GOOGLE_CLIENT_SECRET=your_google_client_secret
+   ```
+
+   For more details on setting up authentication, refer to the [Chainlit Authentication Documentation](https://docs.chainlit.io/authentication/overview).
 
 ## Running the Application
 
