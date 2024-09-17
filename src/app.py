@@ -1,4 +1,7 @@
+from typing import Dict, Optional
+
 import chainlit as cl
+from dotenv import load_dotenv
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain.memory import ConversationTokenBufferMemory
 from langchain.prompts import ChatPromptTemplate
@@ -9,6 +12,7 @@ from utils.edgar_reports import get_latest_report
 from utils.openai import get_openai_api_key
 
 open_ai_key = get_openai_api_key()
+load_dotenv()
 
 
 @tool
@@ -68,6 +72,16 @@ agent = create_openai_tools_agent(
 agent_executor = AgentExecutor(agent=agent, tools=tools).with_config(
     {"run_name": "Agent"}
 )
+
+
+@cl.oauth_callback
+async def oauth_callback(
+    provider_id: str,
+    token: str,
+    raw_user_data: Dict[str, str],
+    default_user: cl.User,
+) -> Optional[cl.User]:
+    return default_user
 
 
 @cl.on_chat_start
