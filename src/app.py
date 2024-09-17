@@ -1,63 +1,20 @@
-from typing import List
-
 import chainlit as cl
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain.memory import ConversationTokenBufferMemory
 from langchain.prompts import ChatPromptTemplate
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.messages import BaseMessage
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.tools import tool
+from langchain.tools import tool
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
 
 from utils.edgar_reports import get_latest_report
 from utils.openai import get_openai_api_key
 
-OPEN_AI_KEY = get_openai_api_key()
-MAX_TOKEN_LIMIT = 100000  # Increased to utilize more of GPT-4o's capacity
-
-
-class TruncatedChatMessageHistory(ChatMessageHistory, BaseModel):
-    truncate_at_tokens: int = Field(...)
-    language_model: ChatOpenAI = Field(...)
-
-    def get_messages(self) -> List[BaseMessage]:
-        return self.truncate(list(super().messages))
-
-    def truncate(self, messages: List[BaseMessage]) -> List[BaseMessage]:
-        total_tokens = 0
-        truncated_messages = []
-
-        for message in reversed(messages):
-            tokens = self.language_model.get_num_tokens(message.content)
-            if total_tokens + tokens > self.truncate_at_tokens:
-                break
-            total_tokens += tokens
-            truncated_messages.append(message)
-
-        return list(reversed(truncated_messages))
-
-
-class AsyncConversationTokenBufferMemory(ConversationTokenBufferMemory):
-    async def aget_messages(self):
-        return self.chat_memory.messages
-
-    async def aadd_messages(self, messages):
-        for message in messages:
-            self.chat_memory.add_message(message)
+open_ai_key = get_openai_api_key()
 
 
 @tool
 async def get_company_report(company: str, report_type: str):
-    """Returns a company's latest report
-
-    Args:
-        company: Company Stock Ticker
-        report_type: Type of report eg: 10-Q, 10-K
-    """
+    """Returns a company's latest report"""
     return await get_latest_report(company, report_type)
-
 
 
 SEC_COPILOT_TEMPLATE = """
@@ -74,7 +31,7 @@ in answering questions and providing insight on public company
 financial and earnings data."
 """
 
-sec_copilot_prompt = ChatPromptTemplate.from_messages(
+prompt = ChatPromptTemplate.from_messages(
     [
         ("system", SEC_COPILOT_TEMPLATE),
         (
@@ -90,80 +47,55 @@ sec_copilot_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-model = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPEN_AI_KEY)
-memory = ConversationTokenBufferMemory(
-    memory_key="chat_history",
-    return_messages=True,
-    max_token_limit=MAX_TOKEN_LIMIT,
-    llm=model,
-    output_key="output",
+
+model = ChatOpenAI(
+    model="gpt-4o",
+    temperature=0.7,
+    api_key=open_ai_key,
+    streaming=True,
 )
 tools = [get_company_report]
-agent = create_tool_calling_agent(model, tools, sec_copilot_prompt)
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    memory=memory,
-    verbose=True,
-    return_intermediate_steps=True,
-    max_iterations=3,
+memory = ConversationTokenBufferMemory(
+    llm=model,
+    max_token_limit=100000,
+    return_messages=True,
+    memory_key="chat_history",
+)
+agent = create_openai_tools_agent(
+    model.with_config({"tags": ["agent_llm"]}), tools, prompt
+)
+
+agent_executor = AgentExecutor(agent=agent, tools=tools).with_config(
+    {"run_name": "Agent"}
 )
 
 
 @cl.on_chat_start
 async def start_up():
-    agent_with_chat_history = RunnableWithMessageHistory(
-        agent_executor,
-        lambda session_id: AsyncConversationTokenBufferMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            max_token_limit=MAX_TOKEN_LIMIT,
-            llm=model,
-            output_key="output",
-        ),
-        input_messages_key="input",
-        history_messages_key="chat_history",
-        return_messages=True,
-    )
-    cl.user_session.set("chat_agent", agent_with_chat_history)
+    cl.user_session.set("chat_agent", agent_executor)
     cl.user_session.set("memory", memory)
 
 
 @cl.on_message
 async def query_llm(message: cl.Message):
     agent = cl.user_session.get("chat_agent")
-    memory = cl.user_session.get("memory")
-    msg = cl.Message(content="", author="Assistant")
-    await msg.send()
-
-    chat_history = memory.chat_memory.messages
+    agent_memory = cl.user_session.get("memory")
+    chat_history = agent_memory.chat_memory.messages
 
     if agent is None:
         raise ValueError("Agent is not initialized")
 
-    async for chunk in agent.astream(
+    msg = cl.Message(content="", author="Assistant")
+    await msg.send()
+
+    async for event in agent.astream_events(
         {"input": message.content, "chat_history": chat_history},
-        config={"configurable": {"session_id": cl.user_session.get("id")}},
+        version="v1",
     ):
-        await process_chunk(chunk, msg)
+        kind = event["event"]
+        if kind == "on_chat_model_stream":
+            content = event["data"]["chunk"].content
+            if content:
+                await msg.stream_token(content)
 
-    memory.save_context({"input": message.content}, {"output": msg.content})
-
-
-async def process_chunk(chunk, msg):
-    if chunk is None:
-        return
-    if isinstance(chunk, dict):
-        if "output" in chunk:
-            await msg.stream_token(chunk["output"])
-        elif "intermediate_steps" in chunk:
-            for step in chunk["intermediate_steps"]:
-                if isinstance(step, tuple) and len(step) == 2:
-                    action, observation = step
-                    action_str = (
-                        f"\nAction: {action.tool}\nInput: {action.tool_input}\n"
-                    )
-                    await msg.stream_token(action_str)
-                    await msg.stream_token(f"Observation: {observation}\n")
-    elif isinstance(chunk, str):
-        await msg.stream_token(chunk)
+    agent_memory.save_context({"input": message.content}, {"output": msg.content})
