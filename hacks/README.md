@@ -32,7 +32,7 @@ This line runs the `patch_socket.py` script after installing the project depende
 ### Future Considerations
 
 While this hack is currently necessary for our project to function correctly with Chainlit, it's important to note that this is a temporary solution. We should:
-- Keep an eye on Chainlit updates and remove this hack once the issue is resolved in the official package.
+- [ ] Keep an eye on Chainlit updates and remove this hack once the issue is resolved in the official package.
 - [x] Communicate with the Chainlit maintainers about the issue and our workaround.
 - [x] Contribute [a fix](https://github.com/Chainlit/chainlit/pull/1364) to the Chainlit project.
 - [x] By implementing this hack, we ensure that our project can leverage Chainlit's capabilities while mitigating known issues in the current version.
