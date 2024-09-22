@@ -13,6 +13,8 @@ async def get_latest_report(company: str, report_type: str) -> str:
             return f"No {report_type} filings found for {company}."
 
         report = filings.markdown()
+        if not report:
+            return f"No {report_type} filings found for {company}."
         return report
     except Exception as e:
         return f"An error occurred while fetching the report: {str(e)}"
