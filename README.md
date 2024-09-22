@@ -5,6 +5,9 @@
 [![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
 [![codecov](https://codecov.io/gh/gsornsen/secbot/branch/main/graph/badge.svg)](https://codecov.io/gh/gsornsen/secbot)
+[![Linux](https://img.shields.io/badge/OS-Linux-informational?style=flat&logo=linux&logoColor=white)](https://www.linux.org/)
+[![macOS](https://img.shields.io/badge/OS-macOS-informational?style=flat&logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Unix](https://img.shields.io/badge/OS-Unix-informational?style=flat&logo=unix&logoColor=white)](https://en.wikipedia.org/wiki/Unix)
 
 SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the [SEC EDGAR](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) database, and earnings call transcripts from the [Discounting Cash Flows API](https://discountingcashflows.com/documentation/financial-api-guide/) allowing users to ask questions, summarize details, and gain insights from financial data.
 
@@ -28,11 +31,14 @@ SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the 
 
 ### Supported Operating Systems
 
-Currently, the application and development environment is only tested on Linux, but is being implemented to work on MacOS and Unix systems as well. I'll clone this repo and test things on my personal Macbook Pro at a later date.
+The application and development environment have been tested on Linux and macOS. While Unix systems are supported in principle, they have not been explicitly tested.
 
-- MacOS
 - Linux
-- Unix
+- macOS
+- Unix (untested)
+
+> [!TIP]
+If you'd like to run this on a Windows machine, I suggest setting up WSL with the [documention here](https://learn.microsoft.com/en-us/windows/wsl/install).
 
 ### Environment Setup
 
