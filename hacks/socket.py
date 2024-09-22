@@ -25,6 +25,7 @@ from chainlit.types import (
 )
 from chainlit.user_session import user_sessions
 
+# ruff: noqa: F841
 
 def restore_existing_session(sid, session_id, emit_fn, emit_call_fn):
     """Restore a session from the sessionId provided by the client."""
@@ -175,7 +176,7 @@ async def connect(sid, environ):
         thread_id=environ.get("HTTP_X_CHAINLIT_THREAD_ID"),
         languages=environ.get("HTTP_ACCEPT_LANGUAGE"),
         http_referer=http_referer,
-    ) #noqa
+    )
 
     trace_event("connection_successful")
     return True
