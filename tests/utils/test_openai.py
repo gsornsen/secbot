@@ -1,6 +1,6 @@
 import pytest
 
-from src.utils.openai import get_openai_api_key
+from utils.openai import get_openai_api_key
 
 
 def test_get_openai_api_key_success(monkeypatch):
@@ -15,7 +15,7 @@ def test_get_openai_api_key_success(monkeypatch):
 
 def test_get_openai_api_key_missing(monkeypatch):
     # Ensure the environment variable is not set
-    monkeypatch.delenv("OPEN_AI_TOKEN", raising=False)
+    monkeypatch.setenv("OPEN_AI_TOKEN", "")
 
     # Call the function and expect a ValueError
     with pytest.raises(ValueError) as excinfo:
@@ -33,4 +33,4 @@ def test_get_openai_api_key_empty(monkeypatch):
         get_openai_api_key()
 
     # Check the error message
-    assert "OpenAI API key not found" in str(excinfo.value)
+    assert "OpenAI API key not found or empty" in str(excinfo.value)
