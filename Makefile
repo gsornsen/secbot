@@ -2,6 +2,7 @@ VENV := .venv
 PYTHON := $(VENV)/bin/python3
 UV := $(shell which uv)
 CHAINLIT := $(VENV)/bin/chainlit
+SUPERVISOR := $(VENV)/bin/supervisord
 
 .PHONY: env run uv clean test
 
@@ -16,10 +17,14 @@ env: uv
 	@echo "Installing git hooks..."
 	@uv run pre-commit install
 	@uv run pre-commit install --hook-type pre-push
+	@if [ ! -f ~/.aws/config ]; then \
+		echo "[default]\nregion = us-west-2" > ~/.aws/config; \
+		echo "Created ~/.aws/config file"; \
+	fi
 
 run:
 	@echo "Starting application..."
-	$(CHAINLIT) run src/app.py -w --port 8080
+	@PYTHONPATH=$(shell pwd) $(SUPERVISOR) -c supervisord.conf
 
 test:
 	@echo "Running tests..."

@@ -1,23 +1,48 @@
+from operator import itemgetter
 from typing import Dict, Optional
 
 import chainlit as cl
+import chainlit.data as cl_data
+from chainlit.data.storage_clients import S3StorageClient
+from chainlit.types import ThreadDict
 from dotenv import load_dotenv
 from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain.memory import ConversationTokenBufferMemory
-from langchain.prompts import ChatPromptTemplate
-from langchain.tools import tool
+from langchain.agents.output_parsers.tools import ToolAgentAction
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.schema import LLMResult
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough
+from langchain.tools import Tool
 from langchain_openai import ChatOpenAI
 
+from utils.custom_data_layer import CustomSQLAlchemyDataLayer
 from utils.edgar_reports import get_latest_report
 from utils.openai import get_openai_api_key
+from utils.sqlite_data_layer import SQLiteDataLayer
 
 open_ai_key = get_openai_api_key()
 load_dotenv()
 
+sqlite_data_layer = SQLiteDataLayer()
 
-@tool
-async def get_company_report(company: str, report_type: str):
-    """Returns a company's latest report"""
+storage_client = S3StorageClient(
+    bucket="chainlit",
+)
+
+data_layer = CustomSQLAlchemyDataLayer(
+    conninfo="sqlite+aiosqlite:///data.db",
+    storage_provider=storage_client,
+)
+
+cl_data._data_layer = data_layer
+
+async def get_company_report(input_string: str):
+    """
+    Returns a company's latest report.
+    Input should be in the format 'TICKER,REPORT_TYPE'
+    """
+    company, report_type = input_string.split(',')
     return await get_latest_report(company, report_type)
 
 
@@ -35,43 +60,77 @@ in answering questions and providing insight on public company
 financial and earnings data."
 """
 
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", SEC_COPILOT_TEMPLATE),
-        (
+
+class ChainlitStreamingHandler(BaseCallbackHandler):
+    def __init__(self, chainlit_message):
+        self.chainlit_message = chainlit_message
+        self.content = ""
+
+    async def on_llm_new_token(self, token: str, **kwargs) -> None:
+        if token.strip() and token != "0":
+            self.content += token
+            await self.chainlit_message.stream_token(token)
+
+    async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
+        if self.content:
+            self.chainlit_message.content = self.content.strip()
+        await self.chainlit_message.update()
+
+def setup_runnable():
+    memory = cl.user_session.get("memory")
+    model = ChatOpenAI(
+        model="gpt-4o",
+        temperature=0.7,
+        api_key=open_ai_key,
+        streaming=True,
+    )
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", SEC_COPILOT_TEMPLATE),
+            MessagesPlaceholder(variable_name="history"),
+            (
             "system",
             "Use the following chat history to answer questions "
-            "if possible: {chat_history}",
+            "if possible: {history}",
         ),
-        ("human", "{input}"),
-        (
-            "assistant",
-            "Here's the current conversation and thought process:\n{agent_scratchpad}",
-        ),
+            ("human", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+    tools = [
+        Tool(
+            name="get_company_report",
+            func=lambda x: get_company_report(x),
+            coroutine=get_company_report,
+            description=
+                """
+                Returns a company's latest report.
+                Input should be a string in the format:
+                'TICKER,REPORT_TYPE' (e.g., 'AAPL,10-K' or 'GOOGL,10-Q')
+            """
+        )
     ]
-)
+    memory = ConversationBufferMemory(
+        return_messages=True,
+        memory_key="history",
+        output_key="output",
+    )
 
+    agent = create_openai_tools_agent(model, tools, prompt)
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        memory=memory,
+        verbose=True,
+        return_intermediate_steps=True,
+    )
 
-model = ChatOpenAI(
-    model="gpt-4o",
-    temperature=0.7,
-    api_key=open_ai_key,
-    streaming=True,
-)
-tools = [get_company_report]
-memory = ConversationTokenBufferMemory(
-    llm=model,
-    max_token_limit=100000,
-    return_messages=True,
-    memory_key="chat_history",
-)
-agent = create_openai_tools_agent(
-    model.with_config({"tags": ["agent_llm"]}), tools, prompt
-)
+    runnable = RunnablePassthrough.assign(
+        history=RunnableLambda(memory.load_memory_variables) | itemgetter("history")
+    ) | agent_executor
 
-agent_executor = AgentExecutor(agent=agent, tools=tools).with_config(
-    {"run_name": "Agent"}
-)
+    cl.user_session.set("runnable", runnable)
+    cl.user_session.set("memory", memory)
 
 
 @cl.oauth_callback
@@ -86,30 +145,87 @@ async def oauth_callback(
 
 @cl.on_chat_start
 async def start_up():
-    cl.user_session.set("chat_agent", agent_executor)
-    cl.user_session.set("memory", memory)
+    cl.user_session.set("memory", ConversationBufferMemory(return_messages=True))
+    setup_runnable()
 
+@cl.on_chat_resume
+async def on_chat_resume(thread: ThreadDict):
+    try:
+        memory = ConversationBufferMemory(return_messages=True)
+        all_messages = thread["steps"]
+        for message in all_messages:
+            content = message.get("output", "").strip()
+            if content:
+                if message["type"] == "user_message":
+                    memory.chat_memory.add_user_message(content)
+                elif message["type"] == "assistant_message":
+                    memory.chat_memory.add_ai_message(content)
+
+        cl.user_session.set("memory", memory)
+        cl.user_session.set("metadata", {})
+        setup_runnable()
+    except Exception as e:
+        print(f"Error in on_chat_resume: {e}")
 
 @cl.on_message
 async def query_llm(message: cl.Message):
-    agent = cl.user_session.get("chat_agent")
-    agent_memory = cl.user_session.get("memory")
-    chat_history = agent_memory.chat_memory.messages
+    memory = cl.user_session.get("memory")
+    runnable = cl.user_session.get("runnable")
 
-    if agent is None:
-        raise ValueError("Agent is not initialized")
-
-    msg = cl.Message(content="", author="Assistant")
+    msg = cl.Message(content="")
     await msg.send()
 
-    async for event in agent.astream_events(
-        {"input": message.content, "chat_history": chat_history},
-        version="v1",
-    ):
-        kind = event["event"]
-        if kind == "on_chat_model_stream":
-            content = event["data"]["chunk"].content
-            if content:
-                await msg.stream_token(content)
+    streaming_handler = ChainlitStreamingHandler(msg)
 
-    agent_memory.save_context({"input": message.content}, {"output": msg.content})
+    full_response = ""
+    async for chunk in runnable.astream(
+        {"input": message.content},
+        config={"callbacks": [streaming_handler]},
+    ):
+        await process_chunk(chunk, msg)
+        if isinstance(chunk, dict) and "output" in chunk:
+            full_response += chunk["output"]
+        elif isinstance(chunk, str):
+            full_response += chunk
+
+
+    # Remove duplicate responses
+    full_response = full_response.strip()
+    if full_response.count(full_response.split()[0]) > 1:
+        full_response = full_response.split(full_response)[0]
+
+    # Store the complete assistant response in the memory
+    if full_response:
+        memory.chat_memory.add_user_message(message.content)
+        memory.chat_memory.add_ai_message(full_response)
+
+    # Update the final assistant response in the UI
+    if full_response:
+        msg.content = full_response
+        await msg.update()
+
+async def process_chunk(chunk, msg):
+    if isinstance(chunk, dict):
+        if "output" in chunk:
+            output = chunk["output"].strip()
+            if output and output != "0":
+                await msg.stream_token(output)
+        elif "intermediate_steps" in chunk:
+            for step in chunk["intermediate_steps"]:
+                if isinstance(step, tuple) and len(step) == 2:
+                    action, observation = step
+                    if isinstance(action, ToolAgentAction):
+                        action_str = f"""
+                        \n🛠️ Tool Call: {action.tool}\n
+                        Input: {action.tool_input}\n
+                        """
+                        await msg.stream_token(action_str)
+                        await msg.stream_token("⏳ Executing tool...\n")
+                        await msg.stream_token(f"📊 Observation: {observation}\n")
+                    else:
+                        await msg.stream_token(f"\n🛠️ Action: {action}\n")
+                        await msg.stream_token(f"📊 Observation: {observation}\n")
+                    await msg.stream_token("🤔 Thinking...\n")
+    elif isinstance(chunk, str) and chunk.strip() and chunk != "0":
+        await msg.stream_token(chunk)
+    await msg.update()
