@@ -10,7 +10,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  ci:
 
     runs-on: ubuntu-latest
     strategy:
@@ -31,5 +31,8 @@ jobs:
       run: |
         uv run ruff check src/
     - name: Test with pytest
+      env:
+        DCM_API_KEY: ${{ secrets.DCM_API_KEY }}
+        OPEN_AI_TOKEN: ${{ secrets.OPEN_AI_TOKEN }}
       run: |
         make test

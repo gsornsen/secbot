@@ -19,7 +19,7 @@ def get_dcm_api_key():
         raise ValueError(
             """
             DCM API key not found or empty.
-            Please set a valid DCMP_API_KEY in your .env file
+            Please set a valid DCM_API_KEY in your .env file
             or as an environment variable.
             """
         )
