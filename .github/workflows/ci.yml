@@ -41,3 +41,8 @@ jobs:
         CHAINLIT_AUTH_SECRET: ${{ secrets.CHAINLIT_AUTH_SECRET }}
       run: |
         make test
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: true
