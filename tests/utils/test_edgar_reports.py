@@ -28,10 +28,7 @@ async def test_get_latest_report_company_not_found():
          patch('edgar.set_identity'):
         result = await get_latest_report("INVALID", "10-K")
 
-        assert result == """
-        An error occurred while fetching the
-        report: Company not found
-        """
+        assert result == "An error occurred while fetching the report: Company not found" #noqa
 
 @pytest.mark.asyncio
 async def test_get_latest_report_no_filings():
