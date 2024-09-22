@@ -17,6 +17,10 @@ from langchain.tools import Tool
 from langchain_openai import ChatOpenAI
 
 from utils.custom_data_layer import CustomSQLAlchemyDataLayer
+from utils.earnings_call_transcripts import (
+    get_latest_transcript,
+    get_specific_transcript,
+)
 from utils.edgar_reports import get_latest_report
 from utils.openai import get_openai_api_key
 from utils.sqlite_data_layer import SQLiteDataLayer
@@ -37,18 +41,45 @@ data_layer = CustomSQLAlchemyDataLayer(
 
 cl_data._data_layer = data_layer
 
+
 async def get_company_report(input_string: str):
     """
     Returns a company's latest report.
     Input should be in the format 'TICKER,REPORT_TYPE'
     """
-    company, report_type = input_string.split(',')
+    company, report_type = input_string.split(",")
     return await get_latest_report(company, report_type)
+
+async def get_earnings_call_transcript(input_string: str):
+    """
+    Returns a company's earnings call transcript.
+    Input should be in one of the following formats:
+    - 'TICKER' for the latest transcript
+    - 'TICKER,YEAR,QUARTER' for a specific transcript
+    """
+    parts = input_string.split(',')
+    ticker = parts[0].strip()
+
+    if len(parts) == 1:
+        return await get_latest_transcript(ticker)
+    elif len(parts) == 3:
+        try:
+            year = int(parts[1].strip())
+            quarter = int(parts[2].strip())
+            return await get_specific_transcript(ticker, year, quarter)
+        except ValueError:
+            return "Invalid input format. Year and quarter must be integers."
+    else:
+        return """
+        Invalid input format. Use 'TICKER' for latest or
+        'TICKER,YEAR,QUARTER' for specific transcript.
+        """
 
 
 SEC_COPILOT_TEMPLATE = """
 You are an assistant chatbot named "SEC Copilot". Your expertise is
-fetching data from the SEC EDGAR database, answering questions about
+fetching data from the SEC EDGAR database, fetching earnings call
+transcripts, answering questions about
 the data fetched, summarizing financial reports from companies,
 summarizing earnings calls based on transcripts, as well as
 helping identify strategies to build functionality within scope
@@ -76,6 +107,7 @@ class ChainlitStreamingHandler(BaseCallbackHandler):
             self.chainlit_message.content = self.content.strip()
         await self.chainlit_message.update()
 
+
 def setup_runnable():
     memory = cl.user_session.get("memory")
     model = ChatOpenAI(
@@ -89,10 +121,10 @@ def setup_runnable():
             ("system", SEC_COPILOT_TEMPLATE),
             MessagesPlaceholder(variable_name="history"),
             (
-            "system",
-            "Use the following chat history to answer questions "
-            "if possible: {history}",
-        ),
+                "system",
+                "Use the following chat history to answer questions "
+                "if possible: {history}",
+            ),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ]
@@ -102,12 +134,24 @@ def setup_runnable():
             name="get_company_report",
             func=lambda x: get_company_report(x),
             coroutine=get_company_report,
-            description=
-                """
+            description="""
                 Returns a company's latest report.
                 Input should be a string in the format:
                 'TICKER,REPORT_TYPE' (e.g., 'AAPL,10-K' or 'GOOGL,10-Q')
-            """
+            """,
+        ),
+        Tool(
+            name="get_earnings_call_transcript",
+            func=lambda x: get_earnings_call_transcript(x),
+            coroutine=get_earnings_call_transcript,
+            description="""
+                Returns a company's earnings call transcript.
+                Input should be in one of the following formats:
+                - 'TICKER' for the latest transcript
+                - 'TICKER,YEAR,QUARTER' for a specific transcript
+                (e.g., 'AAPL,2024,1' for the first quarter of 2024)
+                (e.g., 'AAPL' for the latest transcript)
+            """,
         )
     ]
     memory = ConversationBufferMemory(
@@ -125,9 +169,12 @@ def setup_runnable():
         return_intermediate_steps=True,
     )
 
-    runnable = RunnablePassthrough.assign(
-        history=RunnableLambda(memory.load_memory_variables) | itemgetter("history")
-    ) | agent_executor
+    runnable = (
+        RunnablePassthrough.assign(
+            history=RunnableLambda(memory.load_memory_variables) | itemgetter("history")
+        )
+        | agent_executor
+    )
 
     cl.user_session.set("runnable", runnable)
     cl.user_session.set("memory", memory)
@@ -148,6 +195,7 @@ async def start_up():
     cl.user_session.set("memory", ConversationBufferMemory(return_messages=True))
     setup_runnable()
 
+
 @cl.on_chat_resume
 async def on_chat_resume(thread: ThreadDict):
     try:
@@ -166,6 +214,7 @@ async def on_chat_resume(thread: ThreadDict):
         setup_runnable()
     except Exception as e:
         print(f"Error in on_chat_resume: {e}")
+
 
 @cl.on_message
 async def query_llm(message: cl.Message):
@@ -188,11 +237,11 @@ async def query_llm(message: cl.Message):
         elif isinstance(chunk, str):
             full_response += chunk
 
-
     # Remove duplicate responses
     full_response = full_response.strip()
-    if full_response.count(full_response.split()[0]) > 1:
-        full_response = full_response.split(full_response)[0]
+    if full_response:
+        if full_response.count(full_response.split()[0]) > 1:
+            full_response = full_response.split(full_response.split()[0])[0]
 
     # Store the complete assistant response in the memory
     if full_response:
@@ -203,6 +252,7 @@ async def query_llm(message: cl.Message):
     if full_response:
         msg.content = full_response
         await msg.update()
+
 
 async def process_chunk(chunk, msg):
     if isinstance(chunk, dict):

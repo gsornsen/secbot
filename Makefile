@@ -21,6 +21,7 @@ env: uv
 		echo "[default]\nregion = us-west-2" > ~/.aws/config; \
 		echo "Created ~/.aws/config file"; \
 	fi
+	@$(PYTHON) hacks/patch_socket.py
 
 run:
 	@echo "Starting application..."

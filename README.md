@@ -1,13 +1,13 @@
 # SEC Copilot
 
-SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the SEC database, allowing users to ask questions, summarize details, and gain insights from financial data.
+SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the [SEC EDGAR](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) database, and earnings call transcripts from the [Discounting Cash Flows API](https://discountingcashflows.com/documentation/financial-api-guide/) allowing users to ask questions, summarize details, and gain insights from financial data.
 
 ## Features
 
-- Fetch financial reports from the SEC database
+- Fetch financial reports from the [SEC EDGAR](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) database
+- Fetch earnings call transcripts from the [Discounting Cash Flows API](https://discountingcashflows.com/documentation/financial-api-guide/)
 - Ask questions about specific companies or financial metrics
 - Summarize key details from financial reports
-- Powered by advanced language models for intelligent interactions
 
 ## Demo
 
@@ -48,15 +48,19 @@ Currently, the application and development environment is only tested on Linux, 
    - Install project dependencies
    - Set up pre-commit hooks
 
-3. Create a `.env` file in the project root and add your OpenAI API key:
+3. Create a `.env` file in the project root and add your [OpenAI API key](https://platform.openai.com/api-keys):
 
    ```
    OPEN_AI_TOKEN=your_api_key_here
    ```
 
-   Or export this environment variable in your applicable `~/.zshrc`, `~/.bashrc`, etc.
+4. Add your [DMC API key](https://discountingcashflows.com/user-profile/) to the `.env` file:
 
-4. Create a JWT secret for Chainlit authentication:
+   ```
+   DMC_API_KEY=your_api_key_here
+   ```
+
+5. Create a JWT secret for Chainlit authentication:
 
    ```
    uv run chainlit create-secret
@@ -68,7 +72,7 @@ Currently, the application and development environment is only tested on Linux, 
    CHAINLIT_AUTH_SECRET=your_generated_secret_here
    ```
 
-5. Add OAuth keys to your `.env` file:
+6. Add OAuth keys to your `.env` file:
 
    ```
    OAUTH_GITHUB_CLIENT_ID=your_github_client_id
