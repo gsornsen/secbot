@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.utils.edgar_reports import get_latest_report
+from utils.edgar_reports import get_latest_report
 
 
 @pytest.fixture

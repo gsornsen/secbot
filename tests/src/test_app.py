@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.app import process_chunk, summarize_long_text
+from app import process_chunk, summarize_long_text
 
 
 @pytest.fixture
