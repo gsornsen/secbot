@@ -1,5 +1,11 @@
 # SEC Copilot
 
+[![CI](https://github.com/gsornsen/secbot/actions/workflows/ci.yml/badge.svg)](https://github.com/gsornsen/secbot/actions/workflows/ci.yml)
+[![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-390/)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![codecov](https://codecov.io/gh/gsornsen/secbot/branch/main/graph/badge.svg)](https://codecov.io/gh/gsornsen/secbot)
+
 SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the [SEC EDGAR](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) database, and earnings call transcripts from the [Discounting Cash Flows API](https://discountingcashflows.com/documentation/financial-api-guide/) allowing users to ask questions, summarize details, and gain insights from financial data.
 
 ## Features
@@ -17,7 +23,7 @@ SEC Copilot is an LLM-powered chatbot that retrieves financial reports from the 
 
 ### Prerequisites
 
-- Python 3.10 or higher
+- Python 3.9 or higher
 
 
 ### Supported Operating Systems
@@ -32,7 +38,7 @@ Currently, the application and development environment is only tested on Linux, 
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/secbot.git
+   git clone https://github.com/gsornsen/secbot.git
    cd secbot
    ```
 

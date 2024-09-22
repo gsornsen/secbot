@@ -29,7 +29,7 @@ run:
 
 test:
 	@echo "Running tests..."
-	@$(PYTHON) -m pytest
+	@$(PYTHON) -m pytest --cov=./ --cov-report=xml
 
 clean:
 	@rm -rf $(VENV)
