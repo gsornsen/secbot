@@ -43,7 +43,7 @@ install-multitail:
 		echo "multitail installed successfully."; \
 	fi
 
-env: uv install-multitail
+env: uv
 	@echo "Installing python dependencies..."
 	@uv add pyproject.toml
 	@echo "Installing git hooks..."
@@ -55,6 +55,12 @@ env: uv install-multitail
 		echo "Created ~/.aws/config file"; \
 	fi
 	@$(PYTHON) hacks/patch_socket.py
+	@echo "Attempting to install multitail..."
+	@if ! make install-multitail; then \
+		echo "Warning: Could not install multitail automatically."; \
+		echo "If you want to use 'make stream-logs' to stream all logs,"; \
+		echo "please install multitail manually."; \
+	fi
 
 run:
 	@echo "Starting application..."
