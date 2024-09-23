@@ -12,6 +12,7 @@ dependencies = [
     "edgartools>=2.29.1",
     "flask-cors>=5.0.0",
     "flask>=3.0.3",
+    "greenlet>=3.1.0",
     "langchain-community>=0.3.0",
     "langchain-openai>=0.2.0",
     "langchain>=0.3.0",

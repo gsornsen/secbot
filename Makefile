@@ -8,13 +8,14 @@ SUPERVISOR := $(VENV)/bin/supervisord
 
 uv:
 	@echo "Installing uv..."
-	@command -v uv >/dev/null 2>&1 || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
+	@command -v uv >/dev/null 2>&1 || { echo "uv not found, installing..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
 	@echo "uv is installed"
 
 env: uv
 	@echo "Installing python dependencies..."
 	@uv add pyproject.toml
 	@echo "Installing git hooks..."
+	@mkdir -p .log
 	@uv run pre-commit install
 	@uv run pre-commit install --hook-type pre-push
 	@if [ ! -f ~/.aws/config ]; then \
@@ -32,5 +33,7 @@ test:
 	@$(PYTHON) -m pytest --cov=./ --cov-report=xml
 
 clean:
-	@rm -rf $(VENV)
 	@echo "Removing venv..."
+	@rm -rf $(VENV)
+	@echo "Removing .log directory..."
+	@rm -rf .log
